@@ -54,17 +54,18 @@ def mark_descale(
         y, vsutil.get_w(height), height
     )
     rescale = get_scale_filter(kernel, b=b, c=c, taps=taps)(
-        descale, clip.width, clip.height
+        descale, clip.width, clip.height, format=y.format
     )
+    mask = core.std.Expr([y, rescale], "x y - abs dup 0.015 > swap 0 ?")
+    mask = mask.std.PlaneStats()
 
     def copy_scale_error(n, f):
         f_out = f[0].copy()
-        f_out.props["ScaleError"] = f[1].props.PlaneStatsDiff
+        f_out.props["ScaleError"] = f[1].props.PlaneStatsAverage
         return f_out
 
-    stats = core.std.PlaneStats(rescale, y)
     descale = core.std.ModifyFrame(
-        clip=descale, clips=[descale, stats], selector=copy_scale_error
+        clip=descale, clips=[descale, mask], selector=copy_scale_error
     )
 
     def write_scale_error(n, f, clip):
@@ -86,7 +87,7 @@ def descale_range(
     b: float = 1 / 3,
     c: float = 1 / 3,
     taps: int = 5,
-    threshold: float = 6e-4,
+    threshold: float = 7e-6,
     mask_detail: bool = False,
     debug: bool = False,
 ):
