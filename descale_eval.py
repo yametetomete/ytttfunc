@@ -19,8 +19,8 @@ def get_scale_filter(kernel: str, **kwargs):
     """
     filters = {
         "bilinear": (lambda **kwargs: core.resize.Bilinear),
-        "spline16": (lambda **kwargs: core.resize.Despline16),
-        "spline36": (lambda **kwargs: core.resize.Despline36),
+        "spline16": (lambda **kwargs: core.resize.Spline16),
+        "spline36": (lambda **kwargs: core.resize.Spline36),
         "bicubic": (
             lambda b, c, **kwargs: partial(
                 core.resize.Bicubic, filter_param_a=b, filter_param_b=c
@@ -102,9 +102,9 @@ def descale_range(
     def lazy_scale(clip, target_height):
         if clip.height < target_height:
             clip = nnedi3_rpow2(clip)
-        return clip.resize.Spline36(
-            vsutil.get_w(target_height), target_height, format=clip.format
-        )
+            return clip.resize.Spline36(
+                vsutil.get_w(target_height), target_height, format=clip.format
+            )
 
     clip = clip.resize.Point(
         format=clip.format.replace(bits_per_sample=32, sample_type=vs.FLOAT)
@@ -154,7 +154,7 @@ def descale_range(
                     f"{descale[min_index].height},"
                     f"{f[min_index].props.ScaleError:.2e}"
                 )
-            return clip
+                return clip
 
     return core.std.FrameEval(
         clip,
@@ -173,21 +173,27 @@ def descale_range(
 
 
 def main():
-    # TODO: make this not useless
-    src = core.ffms2.Source(sys.argv[1])
-    descaled = mark_descale(src, 872)
-    # descaled = eval_descale(src, marked)
+    src = core.ffms2.Source(sys.argv[1]).fmtc.bitdepth(bits=16)
+    src = vsutil.get_y(src).resize.Point(
+        src.width, src.height, format=vs.GRAYS
+    )
+    descaled = [mark_descale(src, x) for x in range(870, 875)]
 
-    def print_err(n, f, clip):
-        print(f"{f.props.ScaleError}")
+    out = open("axz.log", "w")
+
+    def print_err(n, f, clip, out):
+        min_error = min(f, key=lambda x: x.props.ScaleError)
+        out.write(f"{n} {min_error.props.ScaleError}\n")
         return clip
 
     descaled = core.std.FrameEval(
-        descaled, partial(print_err, clip=descaled), prop_src=descaled
+        src, partial(print_err, clip=src, out=out), prop_src=descaled
     )
 
     for i in range(len(descaled)):
-        descaled.get_frame_async(i)
+        descaled.get_frame(i)
+
+    out.close()
 
 
 if __name__ == "__main__":
