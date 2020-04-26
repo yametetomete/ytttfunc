@@ -10,10 +10,13 @@ def replace_ranges(clip_a, clip_b, ranges):
     for r in ranges:
         if type(r) is tuple:
             start, end = r
-            if start == 0:
-                out = clip_b[: end + 1] + out[end + 1 :]
-            else:
-                out = out[:start] + clip_b[start : end + 1] + out[end + 1 :]
         else:
-            out = out[:r] + clip_b[r] + out[r + 1 :]
+            start = r
+            end = r
+        tmp = clip_b[start : end + 1]
+        if start != 0:
+            tmp = out[: start] + tmp
+        if end < out.num_frames - 1:
+            tmp = tmp + out[end + 1 :]
+        out = tmp
     return out
